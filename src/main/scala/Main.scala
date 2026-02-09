@@ -13,7 +13,7 @@ object Main {
     }
     val filename = args(0)
     val outputPath = args(1)
-    val numPartitions = if (args.length > 2) args(2).toInt else 32
+    val numPartitions = if (args.length > 2) args(2).toInt else 8
     val workers = if (args.length > 3) args(3) else "unknown"
 
     // Inizializzazione Sessione Spark
