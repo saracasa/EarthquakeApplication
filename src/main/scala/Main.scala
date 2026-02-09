@@ -1,6 +1,7 @@
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
-import org.apache.spark.sql.SaveMode
+import java.nio.file.{Files, Paths, StandardOpenOption}
+import java.nio.charset.StandardCharsets
 
 object Main {
   def main(args: Array[String]): Unit = {
@@ -11,6 +12,8 @@ object Main {
     }
     val filename = args(0)
     val outputPath = args(1)
+    val numPartitions = if (args.length > 2) args(2).toInt else 32
+    val workers = if (args.length > 3) args(3) else "unknown"
 
     // Inizializzazione Sessione Spark
     val spark = SparkSession.builder
@@ -45,8 +48,8 @@ object Main {
 
     // 1.2. Formato del risultato dell’analisi
     val events = cleanedData.toDF("location", "date")
-      .repartition(16) // Trasformo l'RDD in un DataFrame e lo partiziona in cluster,
-      //.persist(org.apache.spark.storage.StorageLevel.MEMORY_AND_DISK)// Rendo i dati persistenti per evitare ricalcoli durante il join
+      .repartition(numPartitions) // Trasformo l'RDD in un DataFrame e lo partiziona in cluster,
+    //.persist(org.apache.spark.storage.StorageLevel.MEMORY_AND_DISK)// Rendo i dati persistenti per evitare ricalcoli durante il join
 
 
     // Analisi di co-occorrenza (Map-Reduce Distributed Task)
@@ -55,10 +58,10 @@ object Main {
       .filter(col("a.location") < col("b.location"))
       .groupBy(col("a.location").as("loc_a"), col("b.location").as("loc_b"))
       .agg(count("*").as("count"), collect_list("a.date").as("dates"))
-      .orderBy(desc("count"))
-      .persist() // Evita ricalcoli per .write e .first()
+      //.orderBy(desc("count"))
+      //.persist() // Evita ricalcoli per .write e .first()
 
-    val topResult = results.first() // Prendo risultato con massimo numero di occorrenze
+    val topResult = results.rdd.max()(Ordering.by(_.getAs[Long]("count"))) // Prendo risultato con massimo numero di occorrenze
 
     //tempo finale
     val t1 = System.nanoTime()
@@ -68,7 +71,7 @@ object Main {
 
     val datesList = topResult.getList[String](3).toArray.map(_.toString).sorted // Estraggo la lista delle date e le ordino in modo crescente
     datesList.foreach(println)
-    //println(s"Le date della co-occorrenza più frequente sono ${datesList.length}")ù
+    //println(s"Le date della co-occorrenza più frequente sono ${datesList.length}")
 
     println(s"Tempo di esecuzione: $durationSeconds secondi")
     println(s"Coppia Max: (${topResult.get(0)}, ${topResult.get(1)}) con ${topResult.get(2)} occorrenze")
@@ -76,15 +79,27 @@ object Main {
     // Salva nel txt
     val locA = topResult.get(0)
     val locB = topResult.get(1)
-    val dates = topResult.getList[String](3).toArray.map(_.toString).sorted
-    val report = new StringBuilder
-    report.append(s"($locA, $locB)\n")
-    dates.foreach(d => report.append(s"$d\n"))
-    spark.createDataset(Seq(report.toString()))
-      .coalesce(1)
-      .write
-      .mode(SaveMode.Overwrite)
-      .text(outputPath + "/Risultato")
+    val datesSorted = topResult.getList[String](3).toArray.map(_.toString).sorted
+
+    val outputSnippet = s"(($locA),($locB)) | ${datesSorted.take(10).mkString(" | ")}..."
+    val logEntry = s"""{"workers": "$workers", "partitions": $numPartitions, "time_seconds": $durationSeconds, "output_snippet": "$outputSnippet"}\n${"-" * 40}\n"""
+
+    val directory = Paths.get(outputPath)
+    val filePath = directory.resolve("results.txt")
+
+    try {
+      if (!Files.exists(directory)) Files.createDirectories(directory)
+
+      Files.write(
+        filePath,
+        logEntry.getBytes(StandardCharsets.UTF_8),
+        StandardOpenOption.CREATE,
+        StandardOpenOption.APPEND
+      )
+      println(s"Esperimento salvato in: ${filePath.toAbsolutePath}")
+    } catch {
+      case e: Exception => println(s"Errore salvataggio: ${e.getMessage}")
+    }
 
     spark.stop()
   }
