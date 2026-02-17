@@ -16,7 +16,7 @@ object Main {
     val numPartitions = if (args.length > 2) args(2).toInt else 8
     val workers = if (args.length > 3) args(3) else "unknown"
 
-    // Inizializzazione Sessione Spark
+    // Inizializzazione Spark
     val spark = SparkSession.builder
       .appName("Earthquake Application")
       .master("local[*]") // locale
@@ -85,7 +85,7 @@ object Main {
   }
 
   def saveResults(path: String, lA: Any, lB: Any, dates: Array[String], time: Double, parts: Int, workers: String): Unit = {
-    val logEntry = s"""{"workers": "$workers", "partitions": $parts, "time_seconds": $time, "pair": "($lA,$lB)"}\n"""
+    val logEntry = s"""{"workers": "$workers", "partitions": $parts, "time": $time, "output": "($lA,$lB)"}\n"""
     val directory = Paths.get(path)
     if (!Files.exists(directory)) Files.createDirectories(directory)
     Files.write(directory.resolve("results.txt"), logEntry.getBytes(StandardCharsets.UTF_8),
