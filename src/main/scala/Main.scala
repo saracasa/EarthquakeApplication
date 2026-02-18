@@ -47,39 +47,50 @@ object Main {
       ((latRound, lonRound), date)
     }).distinct() // Rimuove duplicati nello stesso giorno
 
-    // 1.2. Analisi delle co-occorrenze
-    val events = cleanedData.toDF("location", "date")
-      .repartition(numPartitions) // Trasformo l'RDD in un DataFrame e lo partiziona in cluster,
+    // 1.2. Analisi delle co-occorrenze (Map-Reduce su RDD)
+    // MAP: invertire chiave per raggruppare per data
+    val byDate = cleanedData
+      .map { case (loc, date) => (date, loc) }
+      .repartition(numPartitions)
 
-    // Analisi di co-occorrenza (Map-Reduce Distributed Task)
-    val results = events.as("a")
-      .join(events.as("b"), col("a.date") === col("b.date"))
-      .filter(col("a.location") < col("b.location"))
-      .groupBy(col("a.location").as("loc_a"), col("b.location").as("loc_b"))
-      .agg(count("*").as("count"), collect_list("a.date").as("dates"))
+    // REDUCE: per ogni data genera tutte le coppie, poi aggrega per coppia
+    val pairs = byDate
+      .groupByKey()
+      .flatMap { case (date, locs) =>
+        val locList = locs.toList.distinct
+        for {
+          i <- locList.indices
+          j <- (i+1) until locList.size
+          a = locList(i)
+          b = locList(j)
+          // Ordinamento lessicografico esplicito
+          (locA, locB) = if (a._1 < b._1 || (a._1 == b._1 && a._2 < b._2)) (a, b) else (b, a)
+        } yield ((locA, locB), date)
+      }
 
-    val topResult = results.rdd.max()(Ordering.by(_.getAs[Long]("count"))) // Prendo risultato con massimo numero di occorrenze
+    // reduceByKey aggrega localmente prima di shufflare (più efficiente)
+    val cooccurrences = pairs
+      .map { case (pair, date) => (pair, Set(date)) }
+      .reduceByKey(_ ++ _)
+      .map { case (pair, dates) => (pair, dates.toList.sorted) }
+
+    val topResult = cooccurrences
+      .map { case (pair, dates) => (pair, dates, dates.size) }
+      .reduce { (a, b) => if (a._3 >= b._3) a else b }
 
     //tempo finale
     val t1 = System.nanoTime()
     val durationSeconds = (t1 - t0) / 1e9
 
-    println(s"(${topResult.get(0)}, ${topResult.get(1)})")
-
-    val datesList = topResult.getList[String](3).toArray.map(_.toString).sorted // Estraggo la lista delle date e le ordino in modo crescente
-    datesList.foreach(println)
-
     //Output
-    val locA = topResult.get(0)
-    val locB = topResult.get(1)
-    val datesSorted = topResult.getList[String](3).toArray.map(_.toString).sorted
+    val ((locA, locB), datesSorted, _) = topResult
 
     println(s"(($locA), ($locB))")
     datesSorted.foreach(println)
     println(s"Tempo di esecuzione: $durationSeconds secondi")
 
     // Salva nel txt
-    saveResults(outputPath, locA, locB, datesSorted, durationSeconds, numPartitions, workers)
+    saveResults(outputPath, locA, locB, datesSorted.toArray, durationSeconds, numPartitions, workers)
 
     spark.stop()
   }

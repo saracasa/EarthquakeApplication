@@ -5,3 +5,4 @@
 {"workers": "unknown", "partitions": 32, "time_seconds": 506.184148554, "pair": "([38.8,-122.8],[38.8,-122.7])"}
 {"workers": "unknown", "partitions": 32, "time_seconds": 467.688759885, "pair": "([38.8,-122.8],[38.8,-122.7])"}
 {"workers": "unknown", "partitions": 8, "time_seconds": 504.875768688, "pair": "([38.8,-122.8],[38.8,-122.7])"}
+{"workers": "unknown", "partitions": 8, "time": 2140.019354636, "output": "((38.8,-122.8),(38.8,-122.7))"}
