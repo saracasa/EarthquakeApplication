@@ -1,83 +1,408 @@
-\documentclass[12pt,a4paper]{article}
+\documentclass[11pt,a4paper]{article}
+
 \usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
 \usepackage[italian]{babel}
+\usepackage[margin=2.3cm]{geometry}
+\usepackage{booktabs}
+\usepackage{amsmath}
 \usepackage{graphicx}
 \usepackage{listings}
 \usepackage{xcolor}
-\usepackage{booktabs}
-\usepackage{hyperref}
+\usepackage[hidelinks]{hyperref}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.17}
+\usepackage{caption}
+\captionsetup{font=small}
+\usepackage{subcaption}
 
-% Configurazione per il codice Scala
-\lstset{
-    language=Scala,
-    basicstyle=\ttfamily\small,
-    keywordstyle=\color{blue},
-    stringstyle=\color{red},
-    commentstyle=\color{green!60!black},
-    breaklines=true,
-    numbers=left,
-    numberstyle=\tiny,
-    frame=single
+\lstdefinelanguage{Scala}{
+  morekeywords={val,var,def,case,class,object,new,while,if,else,import,extends},
+  morecomment=[l]{//}, morecomment=[s]{/*}{*/},
+  morestring=[b]"
 }
 
-\title{Progetto Scalable and Cloud Programming: \\ Analisi di Co-occorrenza Sismica con Spark}
-\author{Sara Casadio}
-\date{Anno Accademico 2025-26}
+\lstset{
+  basicstyle=\ttfamily\footnotesize,
+  breaklines=true,
+  columns=fullflexible,
+  frame=single,
+  framesep=3pt,
+  xleftmargin=2pt,
+  keywordstyle=\color{blue!60!black},
+  commentstyle=\color{gray}
+}
+
+\title{\vspace{-1.5cm}Progetto di Scalable and Cloud Programming}
+\author{Sara Casadio \\ \small Matricola N. 0001186923 \\ \small Alma Mater Studiorum -- Università di Bologna}
+\date{\small Anno Accademico 2025--2026}
 
 \begin{document}
-
 \maketitle
+\vspace{-0.8cm}
 
 \section{Introduzione}
-L'obiettivo del progetto è implementare un'applicazione distribuita tramite Apache Spark per l'analisi di dataset sismici. 
-Nello specifico, l'algoritmo ricerca la coppia di località (approssimate alla prima cifra decimale) che presentano il maggior numero di co-occorrenze di eventi sismici nella stessa data, elencando le date in ordine cronologico.
+Il progetto ha come obiettivo la realizzazione di un'implementazione in Scala e Spark per l'analisi di co-occorrenza di terremoti in località diverse, condotta su un dataset specifico. 
+L'analisi consiste nel ricercare la coppia di locazioni che presenta il massimo numero di co-occorrenze di eventi sismici nell'arco di un giorno ed elencare, in ordine crescente, le date in cui tali eventi co-occorrono.
+L'elaborazione segue il paradigma map-reduce ed è stata eseguita sul dataset completo tramite
+cluster Spark gestiti su Google Cloud Dataproc.
 
-\section{Descrizione dell'Approccio}
-Il problema è stato affrontato utilizzando l'approccio Map-Reduce.
+\subsection{Pre-processing}
 
-\subsection{Pre-processing e Pulizia}
-I dati sono stati pre-processati come segue:
+Ogni evento del CSV viene normalizzato in una coppia \texttt{(data, cella)}:
+
 \begin{itemize}
-    \item Latitudine e longitudine sono state arrotondate alla prima cifra decimale.
-    \item La data è stata troncata per considerare una finestra temporale di 24 ore (YYYY-MM-DD).
-    \item È stata applicata la trasformazione \texttt{distinct()} per evitare che più scosse nella stessa zona e nello stesso giorno venissero contate come co-occorrenze multiple.
+  \item le coordinate sono arrotondate alla prima cifra decimale con modalità \texttt{HALF\_UP}
+        tramite \texttt{java.math.BigDecimal}, per evitare le imprecisioni dell'aritmetica
+        in virgola mobile che si manifesterebbero sui valori a metà intervallo;
+  \item dall'istante temporale viene estratta la sola data, così che la finestra di
+        co-occorrenza sia di un giorno;
+  \item le coppie \texttt{(data, cella)} duplicate vengono eliminate, perché la co-occorrenza
+        conta i giorni in cui due località sono entrambe attive e non i singoli eventi.
 \end{itemize}
 
-\subsection{Analisi di Co-occorrenza}
-Per l'analisi delle co-occorrenze è stato implementato un algoritmo basato su un Self-Join del dataset per trovare località diverse che hanno la stessa data.
-Successivamente per evitare coppie duplicate (A,B) e (B,A), è stato applicato un filtro per mantenere solo le coppie ordinate.
-Infine, è stato effettuato un conteggio delle occorrenze per ogni coppia di località e sono stati ordinati i risultati in ordine decrescente per ottenere la coppia con il maggior numero di co-occorrenze.
+Le righe malformate non interrompono l'elaborazione ma vengono scartate dai filtri successivi.
 
-Per ottimizzare l'esecuzione su larga scala, è stato utilizzato il metodo repartition() per distribuire uniformemente il carico di lavoro tra i nodi worker. 
+\section{Implementazione}
+
+\subsection{Rappresentazione dei dati}
+
+I dati intermedi non usano oggetti ma solo tipi primitivi: 
+ogni cella geografica è racchiusa in un singolo \texttt{Int}, 
+mettendo latitudine e longitudine (moltiplicate per dieci e arrotondate) in 16 bit ciascuna, 
+mentre ogni data diventa un \texttt{Int} nel formato \texttt{YYYYMMDD}.
+
+\begin{lstlisting}[language=Scala]
+def packCell(latTenths: Int, lonTenths: Int): Int = (latTenths << 16) | (lonTenths & 0xFFFF)
+\end{lstlisting}
+
+Con una \texttt{case class}, invece, ogni record occuperebbe più memoria, i numeri verrebbero convertiti in oggetti dentro le collezioni e la serializzazione dovrebbe salvare anche il tipo. 
+Su molti record questi costi si sommano e pesano sul garbage collector e sui dati scambiati in rete.
 
 
 
-\section{Configurazione Cloud e Deployment}
-L'analisi è stata eseguita su Google Cloud Platform utilizzando il servizio \textbf{Dataproc}. Come richiesto, sono state utilizzate istanze \textbf{n2-standard-4} (4 vCPU, 16 GB RAM) con dischi persistenti da 240 GB per garantire prestazioni I/O elevate durante le fasi di \textit{shuffle}.
 
-Il codice è stato compilato in un file JAR tramite \texttt{sbt package} e caricato su un bucket Cloud Storage insieme al dataset completo.
 
-\section{Analisi di Scalabilità}
-Per valutare la scalabilità della soluzione, sono stati eseguiti tre test variando il numero di nodi worker. I risultati sono riassunti nella seguente tabella:
+
+
+
+
+
+
+
+
+
+\subsection{Lettura e aggregazione per data}
+
+Il CSV viene letto come DataFrame e subito in RDD.
+Una \texttt{map} applica la normalizzazione descritta sopra e produce un RDD di coppie \texttt{(data, cella)}. 
+Si tratta di una trasformazione narrow, quindi viene eseguita in locale su ogni partizione senza scambio di dati fra i nodi.
+
+Le celle vengono poi raggruppate per data con \texttt{combineByKey}, usando un
+\texttt{HashSet[Int]} come accumulatore.
+
+\begin{lstlisting}[language=Scala]
+.combineByKey(
+  (c: Int) => mutable.HashSet(c),                                       // crea l'accumulatore
+  (set: mutable.HashSet[Int], c: Int) => { set += c; set },             // aggiunge un elemento
+  (a: mutable.HashSet[Int], b: mutable.HashSet[Int]) => { a ++= b; a }, // unisce due accumulatori
+  numPartitions)
+\end{lstlisting}
+
+Le tre funzioni hanno la stessa struttura di \texttt{aggregate}: creazione del
+valore iniziale, inserimento sequenziale all'interno di una partizione e fusione fra partizioni
+diverse. 
+Rispetto a \texttt{groupByKey}, \texttt{combineByKey} applica le prime due funzioni
+localmente prima dello shuffle, quindi la deduplicazione avviene ancora sul nodo di origine.
+Il numero di dati che attraversa la rete diventa così proporzionale al numero di celle distinte per giorno.
+
+Gli accumulatori sono mutabili, ma ognuno appartiene al task che lo crea e non viene condiviso con
+gli altri task. Non c'è quindi stato condiviso fra i nodi.
+
+Le date che contengono una sola cella vengono eliminate con un \texttt{filter}, perché da una sola
+cella non si ottiene nessuna coppia. Le celle che restano vengono poi ordinate con
+\texttt{mapValues}. L'ordinamento serve due volte: nella fase successiva permette di generare ogni
+coppia una sola volta, e in quella finale permette di cercare le celle con una ricerca binaria. Si
+usa \texttt{mapValues} al posto di \texttt{map} perché mantiene il partizionamento già deciso da
+\texttt{combineByKey}.
+
+\subsection{Conteggio delle co-occorrenze}
+
+Per contare le co-occorrenze si è adottato il pattern \emph{stripes}. Per ogni data, e per ogni
+cella in posizione $i$ dell'array ordinato, viene emessa una sola coppia chiave-valore: la chiave
+è la cella stessa, il valore è una mappa che associa il conteggio 1 a tutte le celle in posizione
+$j > i$. Poiché l'array è già ordinato, ogni coppia viene prodotta una volta sola e in forma
+canonica, senza doverla normalizzare.
+
+\begin{lstlisting}[language=Scala]
+Iterator.tabulate(n - 1) { i =>
+  val stripe = new mutable.HashMap[Int, Int]()
+  var j = i + 1
+  while (j < n) { stripe += (cells(j) -> 1); j += 1 }
+  (cells(i), stripe)
+}
+\end{lstlisting}
+
+Le stripe relative alla stessa cella, provenienti da date diverse, vengono fuse da una
+\texttt{reduceByKey} che somma i conteggi chiave per chiave. Anche qui il combiner locale di
+\texttt{reduceByKey} aggrega all'interno della partizione prima dello shuffle.
+
+È stato valutato anche il pattern \emph{pairs}, che per ogni combinazione emette una coppia
+\texttt{((a,b), 1)}, ma è stato scartato perché genera molti più record: per ogni data
+ne produce uno per ogni coppia di celle, mentre stripes ne produce uno per cella. 
+Con stripes i record scambiati sono meno, anche se più grandi, e parte del lavoro si sposta sulla memoria dei
+nodi che uniscono le mappe.
+
+\subsection{Selezione della coppia e recupero delle date}
+
+Il massimo si trova in due passaggi. Prima una \texttt{map} cerca il valore più alto dentro ogni
+stripe, poi una \texttt{reduce} confronta questi valori fra loro e restituisce il massimo globale.
+Il calcolo è distribuito e al driver arriva un solo risultato.
+
+Per ricavare le date della coppia vincente si riusa l'RDD delle celle per data. Ogni giorno viene
+tenuto solo se contiene entrambe le celle, e la verifica si fa con due ricerche binarie, dato che
+l'array è già ordinato. In questo modo non serve rifare l'aggregazione, che è la parte più costosa
+del programma.
+
+\subsection{Persistenza}
+
+Le trasformazioni di Spark sono pigre e vengono calcolate solo quando un'azione le richiede. Se più
+azioni dipendono dalla stessa trasformazione, questa viene ricalcolata ogni volta. Nel programma
+l'RDD delle celle per data alimenta due rami distinti: il conteggio delle coppie e, in seguito,
+l'estrazione delle date. Per questo viene reso persistente con
+\texttt{StorageLevel.MEMORY\_AND\_DISK}, evitando di ripetere lettura, normalizzazione e
+raggruppamento. 
+
+\subsection{Grado di parallelismo}
+
+Il numero di partizioni è passato direttamente alle due trasformazioni wide della pipeline
+(\texttt{combineByKey} e \texttt{reduceByKey}) invece di essere imposto con un
+\texttt{repartition} sui dati appena letti. Il parallelismo ottenuto è lo stesso, ma si evita uno
+shuffle aggiuntivo sull'intero dataset non ancora normalizzato, cioè nel momento in cui i record
+occupano più spazio perché sono ancora stringhe. Il primo scambio di dati fra nodi avviene così
+direttamente sulle coppie \texttt{(data, cella)} già compattate.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+\section{Risultati dell'analisi}
+
+Sul dataset completo la coppia di celle che co-occorre più frequentemente è
+\[
+\big((38.8,\ -122.8),\ (38.8,\ -122.7)\big)
+\]
+con \textbf{10\,014 co-occorrenze}, distribuite su date comprese fra il 1990-01-05 e il
+2023-07-29. Il risultato è identico in tutte le configurazioni testate.
+
+\section{Analisi di scalabilità e prestazioni}
+
+\subsection{Setup sperimentale}
+
+Gli esperimenti sono stati eseguiti sul dataset completo, caricato su un bucket di Google Cloud
+Storage, con cluster Dataproc creati da riga di comando nella regione \texttt{us-east1}. 
+Le macchine usate sono \texttt{n2-standard-4} (4 vCPU, 16 GB di RAM), con dischi da 240 GB. 
+Sono state provate tre configurazioni, con 2, 3 e 4 nodi worker,
+corrispondenti a 8, 12 e 16 core complessivi. Per ogni cluster sono stati testati i valori di
+partizioni 4, 8, 16, 32, 64, 128 e 256, lasciando la configurazione Spark predefinita di Dataproc.
+Il tempo riportato è quello misurato dal programma, che parte dopo la creazione della \texttt{SparkSession}.
+
+\subsection{Tempi misurati}
 
 \begin{table}[h]
 \centering
-\begin{tabular}{@{}ccc@{}}
+\small
+\caption{Tempi di esecuzione (s) su cluster \texttt{n2-standard-4}. In grassetto l'ottimo di
+ciascuna configurazione.}
+\begin{tabular}{cccccccc}
 \toprule
-\textbf{N. Worker} & \textbf{Tempo di Esecuzione (min:sec)} & \textbf{Speedup} \\ \midrule
-2                  & [INSERIRE TEMPO 2W]                   & 1.00             \\
-3                  & [INSERIRE TEMPO 3W]                   & [CALCOLARE]      \\
-4                  & [INSERIRE TEMPO 4W]                   & [CALCOLARE]      \\ \bottomrule
+\textbf{Workers} & \multicolumn{7}{c}{\textbf{Partizioni}} \\
+\cmidrule(lr){2-8}
+ & 4 & 8 & 16 & 32 & 64 & 128 & 256 \\
+\midrule
+2 & 158,11 & 112,19 & \textbf{110,27} & 110,74 & 112,55 & 120,85 & 131,97 \\
+3 & 130,13 & 110,69 & 96,30 & \textbf{93,94} & 99,27 & 103,55 & 127,07 \\
+4 & 127,77 & 110,80 & 81,23 & \textbf{77,81} & 79,22 & 99,35 & 114,28 \\
+\bottomrule
 \end{tabular}
-\caption{Risultati dei test di scalabilità sul dataset completo.}
+\end{table}
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=0.74\textwidth, height=5.4cm,
+  xlabel={Numero di partizioni (scala logaritmica)},
+  ylabel={Tempo di esecuzione (s)},
+  xmode=log, log basis x=2,
+  xtick={4,8,16,32,64,128,256},
+  xticklabels={4,8,16,32,64,128,256},
+  legend pos=south west,
+  legend style={font=\footnotesize},
+  grid=major, grid style={gray!25},
+  mark size=1.8pt
+]
+\addplot coordinates {(4,158.11) (8,112.19) (16,110.27) (32,110.74) (64,112.55) (128,120.85) (256,131.97)};
+\addlegendentry{2 worker}
+\addplot coordinates {(4,130.13) (8,110.69) (16,96.30) (32,93.94) (64,99.27) (128,103.55) (256,127.07)};
+\addlegendentry{3 worker}
+\addplot coordinates {(4,127.77) (8,110.80) (16,81.23) (32,77.81) (64,79.22) (128,99.35) (256,114.28)};
+\addlegendentry{4 worker}
+\end{axis}
+\end{tikzpicture}
+\caption{Andamento del tempo al variare del numero di partizioni.}
+\end{figure}
+
+\subsection{Impatto del numero di partizioni}
+
+Le curve mostrano il comportamento a forma di U, ma si può notare che
+nella colonna a 8 partizioni i tre cluster impiegano circa lo stesso tempo. 
+Con 8 task disponibili e 12 o 16 core, gran parte
+delle risorse resta inattiva e aggiungere worker non produce vantaggi perché il parallelismo
+effettivo è limitato dal numero di partizioni, non dall'hardware. 
+
+Il caso opposto è quello di avere troppe partizioni che introducono un costo crescente con la dimensione
+del cluster.
+Rispetto al proprio tempo migliore, con 256 partizioni si perde il 20\% a 2 worker, il 35\% a 3 e il 47\% a 4. 
+Quando i task sono tanti, infatti, ognuno ha poco lavoro da fare, ma i costi fissi di gestione dei task e di
+apertura dei blocchi di shuffle restano gli stessi e finiscono per pesare più del lavoro utile.
+L'ottimo si sposta verso destra al crescere delle risorse: 16 partizioni con
+8 core, 32 con 12 e 16 core.
+
+\subsection{Strong scaling: speedup ed efficienza}
+
+Speedup ed efficienza sono calcolati rispetto al cluster più piccolo testato (2 worker). 
+Indicando con $p = w/2$ il fattore di crescita delle risorse rispetto a questo riferimento, si ha
+\[
+S(w) = \frac{T(2)}{T(w)}, \qquad
+E(w) = \frac{S(w)}{p}.
+\]
+
+
+\begin{table}[h]
+\centering
+\small
+\caption{Speedup ed efficienza, calcolati sul tempo ottimale di ciascun cluster.}
+\begin{tabular}{ccccccc}
+\toprule
+\textbf{Macchina} & \textbf{Workers} & \textbf{Core} & \textbf{Partizioni} & \textbf{Best time (s)} & \textbf{Speedup} & \textbf{Efficienza} \\
+\midrule
+\texttt{n2-standard-4} & 2 & 8  & 16 & 110,27 & 1,00 & 1,000 \\
+\texttt{n2-standard-4} & 3 & 12 & 32 & 93,94  & 1,17 & 0,783 \\
+\texttt{n2-standard-4} & 4 & 16 & 32 & 77,81  & 1,42 & 0,709 \\
+\bottomrule
+\end{tabular}
 \end{table}
 
 
 
-\subsection{Discussione dei risultati}
-[Qui dovrai commentare se il tempo è diminuito linearmente. Ad esempio: ``Passando da 2 a 4 worker si è osservato un incremento delle prestazioni del X\%, a dimostrazione della corretta parallelizzazione del join.'']
+\begin{figure}[htbp]
+\centering
+\begin{subfigure}[b]{0.48\textwidth}
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=\textwidth, height=5.2cm,
+  xlabel={Numero di worker},
+  ylabel={Speedup},
+  xtick={2,3,4},
+  ymin=0.9, ymax=2.15,
+  legend pos=north west,
+  legend style={font=\footnotesize},
+  grid=major, grid style={gray!25},
+  mark size=1.8pt
+]
+\addplot[gray, dashed, mark=none] coordinates {(2,1.0) (3,1.5) (4,2.0)};
+\addlegendentry{Ideale}
+\addplot[blue, mark=*] coordinates {(2,1.00) (3,1.17) (4,1.42)};
+\addlegendentry{Osservato}
+\node[anchor=north west, font=\scriptsize] at (axis cs:2,1.00) {1,00};
+\node[anchor=north west, font=\scriptsize] at (axis cs:3,1.17) {1,17};
+\node[anchor=north east, font=\scriptsize] at (axis cs:4,1.42) {1,42};
+\end{axis}
+\end{tikzpicture}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.48\textwidth}
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=\textwidth, height=5.2cm,
+  xlabel={Numero di worker},
+  ylabel={Efficienza},
+  xtick={2,3,4},
+  ymin=0.6, ymax=1.08,
+  legend pos=south west,
+  legend style={font=\footnotesize},
+  grid=major, grid style={gray!25},
+  mark size=1.8pt
+]
+\addplot[gray, dashed, mark=none] coordinates {(2,1.0) (3,1.0) (4,1.0)};
+\addlegendentry{Ideale}
+\addplot[red, mark=square*] coordinates {(2,1.000) (3,0.783) (4,0.709)};
+\addlegendentry{Osservata}
+\node[anchor=south west, font=\scriptsize] at (axis cs:2,1.000) {1,000};
+\node[anchor=south west, font=\scriptsize] at (axis cs:3,0.783) {0,783};
+\node[anchor=south east, font=\scriptsize] at (axis cs:4,0.709) {0,709};
+\end{axis}
+\end{tikzpicture}
+\end{subfigure}
+\caption{Analisi di strong scaling.}
+\end{figure}
+
+La legge di Amdahl esprime lo speedup in funzione della frazione seriale $f$ come
+$S = 1/\!\left(f + (1-f)/p\right)$; invertendo la relazione rispetto a $f$ si ottiene
+\[
+f = \frac{p/S - 1}{p - 1},
+\]
+che applicata ai due punti misurati fornisce $f = 0{,}56$ con 3 worker
+($p = 1{,}5$) e $f = 0{,}41$ con 4 worker ($p = 2$), cioè $f \approx 0{,}49$
+in media: una frazione parallelizzabile intorno al 51\%.
+
+Questo valore, apparentemente basso, non dipende dall'algoritmo ma da come si compone il tempo di
+esecuzione. Il lavoro svolto dal programma si divide infatti in due parti: una che si distribuisce
+fra i worker e diventa più veloce man mano che se ne aggiungono, e una che resta uguale in tutte le
+configurazioni perché non dipende dal numero di nodi, cioè l'allocazione dei container YARN, la lettura del CSV da Cloud Storage,
+limitata dalla banda verso lo storage, e la scrittura finale dell'output sul driver.
+
+Separando le due componenti a partire dai tempi ottimali misurati si ottiene una parte fissa di
+circa 49 secondi, che a 2 worker rappresenta il 44\% del tempo totale: un valore molto vicino alla
+frazione seriale stimata sopra. Non è l'algoritmo a
+parallelizzarsi male, visto che la parte distribuita si dimezza quando i worker raddoppiano, ma sono
+i costi fissi della piattaforma a pesare sul totale. 
+
 
 \section{Conclusioni}
-L'implementazione ha permesso di individuare con successo la coppia di località con il massimo numero di co-occorrenze. L'utilizzo di Spark su un cluster distribuito ha dimostrato come la gestione oculata delle partizioni sia fondamentale per elaborare dataset di grandi dimensioni in tempi contenuti.
+
+L'approccio basato su \texttt{combineByKey} con deduplicazione locale e su un conteggio delle
+co-occorrenze secondo il pattern \emph{stripes} consente di completare l'analisi sull'intero
+dataset in poco più di un minuto su un cluster di quattro nodi. La scelta di non introdurre un
+\texttt{repartition} iniziale contribuisce a contenere il volume di shuffle e la pressione
+sulla memoria.
+
+L'analisi di scalabilità mostra uno speedup di 1,42 da 2 a 4 worker, con efficienza 0,71. La
+separazione fra componente fissa e componente distribuita chiarisce che il limite non risiede
+nell'algoritmo ma nei costi fissi di inizializzazione e di
+accesso allo storage, che con tempi di esecuzione così contenuti rappresentano una quota
+rilevante del totale.
+
+
+\vspace{0.4cm}
+\noindent\textbf{Codice sorgente:}
+\url{https://github.com/saracasa/EarthquakeApplication.git}
 
 \end{document}
