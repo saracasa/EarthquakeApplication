@@ -16,11 +16,13 @@ L'implementazione è in Scala con Apache Spark, segue il paradigma map-reduce e 
 .
 ├── project
 │   └── build.properties
+├── Report
+│   ├── Report.tex
+│   └── Report.pdf
 ├── src/main/scala
 │   └── Main.scala
 ├── build.sbt
-├── README.md
-└── Report.pdf
+└── README.md
 ```
 
 ## Requisiti
