@@ -43,7 +43,7 @@
 
 \section{Introduzione}
 Il progetto ha come obiettivo la realizzazione di un'implementazione in Scala e Spark per l'analisi di co-occorrenza di terremoti in località diverse, condotta su un dataset specifico. 
-L'analisi consiste nel ricercare la coppia di locazioni che presenta il massimo numero di co-occorrenze di eventi sismici nell'arco di un giorno ed elencare, in ordine crescente, le date in cui tali eventi co-occorrono.
+L'analisi consiste nel ricercare la coppia di locazioni che presenta il massimo numero di co-occorrenze di eventi sismici nell'arco di un giorno, ed elencare in ordine crescente le date in cui tali eventi co-occorrono.
 L'elaborazione segue il paradigma map-reduce ed è stata eseguita sul dataset completo tramite
 cluster Spark gestiti su Google Cloud Dataproc.
 
@@ -76,8 +76,6 @@ mentre ogni data diventa un \texttt{Int} nel formato \texttt{YYYYMMDD}.
 def packCell(latTenths: Int, lonTenths: Int): Int = (latTenths << 16) | (lonTenths & 0xFFFF)
 \end{lstlisting}
 
-Con una \texttt{case class}, invece, ogni record occuperebbe più memoria, i numeri verrebbero convertiti in oggetti dentro le collezioni e la serializzazione dovrebbe salvare anche il tipo. 
-Su molti record questi costi si sommano e pesano sul garbage collector e sui dati scambiati in rete.
 
 
 
@@ -94,7 +92,7 @@ Su molti record questi costi si sommano e pesano sul garbage collector e sui dat
 
 \subsection{Lettura e aggregazione per data}
 
-Il CSV viene letto come DataFrame e subito in RDD.
+Il CSV viene letto come DataFrame e subito convertito in RDD.
 Una \texttt{map} applica la normalizzazione descritta sopra e produce un RDD di coppie \texttt{(data, cella)}. 
 Si tratta di una trasformazione narrow, quindi viene eseguita in locale su ogni partizione senza scambio di dati fra i nodi.
 
@@ -166,12 +164,11 @@ del programma.
 
 \subsection{Persistenza}
 
-Le trasformazioni di Spark sono pigre e vengono calcolate solo quando un'azione le richiede. Se più
-azioni dipendono dalla stessa trasformazione, questa viene ricalcolata ogni volta. Nel programma
-l'RDD delle celle per data alimenta due rami distinti: il conteggio delle coppie e, in seguito,
-l'estrazione delle date. Per questo viene reso persistente con
-\texttt{StorageLevel.MEMORY\_AND\_DISK}, evitando di ripetere lettura, normalizzazione e
-raggruppamento. 
+Spark non esegue subito le trasformazioni: aspetta che un'azione ne chieda il risultato. Se però
+più azioni partono dalla stessa trasformazione, questa viene rifatta da capo ogni volta. Nel
+programma l'RDD delle celle per data serve due volte, prima per contare le coppie e poi per
+estrarre le date, quindi viene salvato in memoria con \texttt{StorageLevel.MEMORY\_AND\_DISK}:
+in questo modo lettura, normalizzazione e raggruppamento vengono eseguiti una sola volta.
 
 \subsection{Grado di parallelismo}
 
@@ -376,14 +373,50 @@ in media: una frazione parallelizzabile intorno al 51\%.
 Questo valore, apparentemente basso, non dipende dall'algoritmo ma da come si compone il tempo di
 esecuzione. Il lavoro svolto dal programma si divide infatti in due parti: una che si distribuisce
 fra i worker e diventa più veloce man mano che se ne aggiungono, e una che resta uguale in tutte le
-configurazioni perché non dipende dal numero di nodi, cioè l'allocazione dei container YARN, la lettura del CSV da Cloud Storage,
-limitata dalla banda verso lo storage, e la scrittura finale dell'output sul driver.
+configurazioni perché non dipende dal numero di nodi.
 
 Separando le due componenti a partire dai tempi ottimali misurati si ottiene una parte fissa di
-circa 49 secondi, che a 2 worker rappresenta il 44\% del tempo totale: un valore molto vicino alla
-frazione seriale stimata sopra. Non è l'algoritmo a
-parallelizzarsi male, visto che la parte distribuita si dimezza quando i worker raddoppiano, ma sono
-i costi fissi della piattaforma a pesare sul totale. 
+circa 49 secondi. Per ricavarla basta osservare che, se il tempo si scrive come una parte fissa più
+una parte che si divide fra i worker, allora riportando i tempi in funzione di $1/w$ i tre punti si
+dispongono lungo una retta: la retta che meglio li interpola vale 49 secondi nel punto in cui
+$1/w$ è zero, cioè con un numero infinito di worker, e questo è appunto il tempo che non si
+riesce a distribuire.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=0.72\textwidth, height=6cm,
+  xlabel={Inverso del numero di worker},
+  ylabel={Tempo di esecuzione (s)},
+  xmin=-0.03, xmax=0.57,
+  ymin=35, ymax=125,
+  xtick={0,0.25,0.3333,0.5},
+  xticklabels={0,1/4,1/3,1/2},
+  legend pos=north west,
+  legend style={font=\footnotesize},
+  grid=major, grid style={gray!25},
+  mark size=2pt
+]
+\addplot[blue, thick, domain=0:0.55, samples=2] {48.76 + 125.29*x};
+\addlegendentry{Retta interpolante}
+\addplot[only marks, mark=*, red] coordinates {(0.5,110.27) (0.3333,93.94) (0.25,77.81)};
+\addlegendentry{Tempi ottimali misurati}
+\addplot[only marks, mark=square*, black] coordinates {(0,48.76)};
+\addlegendentry{Parte fissa}
+\node[anchor=west, font=\scriptsize] at (axis cs:0.5,110.27) {w=2};
+\node[anchor=west, font=\scriptsize] at (axis cs:0.3333,93.94) {w=3};
+\node[anchor=west, font=\scriptsize] at (axis cs:0.25,77.81) {w=4};
+\node[anchor=south west, font=\scriptsize] at (axis cs:0,48.76) {48,8 s};
+\end{axis}
+\end{tikzpicture}
+\caption{Componente che non si distribuisce fra i worker.}
+\end{figure}
+
+A 2 worker questa componente rappresenta il 44\% del tempo totale, un valore molto vicino alla $f$ stimata sopra. 
+Non è quindi l'algoritmo a parallelizzarsi male: 
+il modello che assume una parte perfettamente distribuita riproduce i tempi misurati con scarti di pochi secondi, 
+e sono i costi fissi della piattaforma a pesare sul totale.
 
 
 \section{Conclusioni}

@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025/Homebrew) (preloaded format=pdflatex 2025.3.15)  30 AUG 2026 13:48
+This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025/Homebrew) (preloaded format=pdflatex 2025.3.15)  31 AUG 2026 17:04
 entering extended mode
  restricted \write18 enabled.
  file:line:error style messages enabled.
@@ -654,20 +654,22 @@ Package caption Info: End \AtBeginDocument code.
 [1
 
 {/usr/local/Cellar/texlive/20250308_1/share/texmf-dist/fonts/map/pdftex/updmap/pdftex.map}{/usr/local/Cellar/texlive/20250308_1/share/texmf-dist/fonts/enc/dvips/cm-super/cm-super-t1.enc}{/usr/local/Cellar/texlive/20250308_1/share/texmf-dist/fonts/enc/dvips/cm-super/cm-super-ts1.enc}]
-
-[2]
-Overfull \hbox (17.36896pt too wide) in paragraph at lines 178--184
+Overfull \hbox (17.36896pt too wide) in paragraph at lines 175--181
 \T1/cmr/m/n/10.95 Il nu-me-ro di par-ti-zio-ni è pas-sa-to di-ret-ta-men-te al-le due tra-sfor-ma-zio-ni wi-de del-la pi-pe-li-ne (\T1/cmtt/m/n/10.95 combineByKey
  []
 
-Package pgfplots info on input line 258: Using 'lua backend=false' for axis: xmode=log unsupported (yet).
+
+
+[2]
+Package pgfplots info on input line 255: Using 'lua backend=false' for axis: xmode=log unsupported (yet).
+
 
 LaTeX Warning: `h' float specifier changed to `ht'.
 
 
 
 [3]
-Overfull \hbox (28.26929pt too wide) in paragraph at lines 367--369
+Overfull \hbox (28.26929pt too wide) in paragraph at lines 364--366
 []\T1/cmr/m/n/10.95 La leg-ge di Am-da-hl espri-me lo spee-dup in fun-zio-ne del-la fra-zio-ne se-ria-le $\OML/cmm/m/it/10.95 f$ \T1/cmr/m/n/10.95 co-me $\OML/cmm/m/it/10.95 S \OT1/cmr/m/n/10.95 = 1\OML/cmm/m/it/10.95 =  []$\T1/cmr/m/n/10.95 ;
  []
 
@@ -684,18 +686,18 @@ Package rerunfilecheck Info: File `Report.out' has not changed.
 (rerunfilecheck)             Checksum: 0F5458C3F8F0DE9502E4369405C686E6;2805.
  ) 
 Here is how much of TeX's memory you used:
- 35105 strings out of 473190
- 809112 string characters out of 5705898
- 1428132 words of memory out of 5000000
- 57816 multiletter control sequences out of 15000+600000
+ 35158 strings out of 473190
+ 810278 string characters out of 5705898
+ 1444132 words of memory out of 5000000
+ 57868 multiletter control sequences out of 15000+600000
  574282 words of font info for 70 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
  99i,21n,101p,789b,2408s stack positions out of 10000i,1000n,20000p,200000b,200000s
 </usr/local/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/amsfonts/cm/cmex10.pfb></usr/local/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb></usr/local/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></usr/local/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></usr/local/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/cm-super/sfbx1000.pfb></usr/local/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/cm-super/sfbx1095.pfb></usr/local/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/cm-super/sfbx1200.pfb></usr/local/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/cm-super/sfbx1440.pfb></usr/local/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/cm-super/sfrm0800.pfb></usr/local/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/cm-super/sfrm0900.pfb></usr/local/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/cm-super/sfrm1000.pfb></usr/local/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/cm-super/sfrm1095.pfb></usr/local/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/cm-super/sfrm1200.pfb></usr/local/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/cm-super/sfrm1728.pfb></usr/local/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/cm-super/sfti1095.pfb></usr/local/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/cm-super/sftt0900.pfb></usr/local/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/cm-super/sftt1000.pfb></usr/local/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/cm-super/sftt1095.pfb>
-Output written on Report.pdf (5 pages, 356147 bytes).
+Output written on Report.pdf (5 pages, 362016 bytes).
 PDF statistics:
- 222 PDF objects out of 1000 (max. 8388607)
- 176 compressed objects within 2 object streams
- 41 named destinations out of 1000 (max. 500000)
+ 223 PDF objects out of 1000 (max. 8388607)
+ 177 compressed objects within 2 object streams
+ 42 named destinations out of 1000 (max. 500000)
  141 words of extra memory for PDF output out of 10000 (max. 10000000)
 

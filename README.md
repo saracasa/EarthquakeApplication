@@ -47,8 +47,6 @@ Il jar viene prodotto in `target/scala-2.12/<nome-jar>.jar`.
 
 ## Esecuzione
 
-Nei comandi che seguono vanno sostituiti `<bucket>` con il nome del proprio bucket di Google Cloud Storage, `<nome-jar>` con il nome del jar prodotto dalla compilazione, `<dataset>` con il nome del file CSV e `<cluster>` con il nome scelto per il cluster.
-
 ### Su Google Cloud Dataproc
 
 Dopo aver creato un bucket:

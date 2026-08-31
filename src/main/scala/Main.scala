@@ -9,7 +9,7 @@ import scala.collection.mutable
 
 object Main {
 
-  // Comprimo latitudine e longitudine in un'unico numero intero per risparmiare allocazioni di memoria (16 bit ciascuno)
+  // Comprime latitudine e longitudine in un'unico numero intero per risparmiare allocazioni di memoria (16 bit ciascuno)
   def packCell(latTenths: Int, lonTenths: Int): Int =
     (latTenths << 16) | (lonTenths & 0xFFFF)
 
